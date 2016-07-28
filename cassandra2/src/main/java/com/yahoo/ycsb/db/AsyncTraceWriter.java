@@ -79,7 +79,6 @@ public final class AsyncTraceWriter {
           .setDurationMicros(e.getSourceElapsedMicros())
           .setSource(ByteString.copyFrom(e.getSource().getAddress())));
     }
-    System.out.println("writing");
     b.build().writeDelimitedTo(out);
   }
 
