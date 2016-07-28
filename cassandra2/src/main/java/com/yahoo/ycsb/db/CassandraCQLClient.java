@@ -17,32 +17,26 @@
  */
 package com.yahoo.ycsb.db;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.ConsistencyLevel;
-import com.datastax.driver.core.Host;
-import com.datastax.driver.core.HostDistance;
-import com.datastax.driver.core.Metadata;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
-import com.datastax.driver.core.Statement;
+import com.datastax.driver.core.*;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
+import com.google.protobuf.ByteString;
 import com.yahoo.ycsb.ByteArrayByteIterator;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
 
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.Vector;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Cassandra 2.x CQL client.
@@ -85,6 +79,16 @@ public class CassandraCQLClient extends DB {
   public static final String READ_TIMEOUT_MILLIS_PROPERTY =
       "cassandra.readtimeoutmillis";
 
+  public static final String TRACING_DATA_PATH_PROPERTY = "cassandra.tracingdatapath";
+  public static final String TRACING_SAMPLE_RATE_PROPERTY = "cassandra.tracingsamplerate";
+
+  private static OutputStream baseTracingData;
+  private static OutputStream gzipTracingData;
+  private static OutputStream bufTracingData;
+  private static int tracingSampleRate;
+
+  private static final AtomicInteger opCount = new AtomicInteger(0);
+
   /**
    * Count the number of times initialized to teardown on the last
    * {@link #cleanup()}.
@@ -92,6 +96,78 @@ public class CassandraCQLClient extends DB {
   private static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
 
   private static boolean debug = false;
+
+  private static boolean shouldTrace() {
+    if (tracingSampleRate > 0 && (opCount.getAndIncrement() % tracingSampleRate) == 0) {
+      return true;
+    }
+    return false;
+  }
+
+  private static final int TRACE_BUF_CAP = 100;
+  private static List<Traceinfo.TraceInfo> traceBuf = new ArrayList<>(TRACE_BUF_CAP);
+  private static AtomicInteger clientCount = new AtomicInteger(0);
+
+  private static void openStreams(String traceDataPath) {
+    int clients = clientCount.getAndIncrement();
+    if (clients > 0) {
+      return;
+    }
+    try {
+      baseTracingData = Files.newOutputStream(Paths.get(traceDataPath));
+      gzipTracingData = new GZIPOutputStream(baseTracingData);
+      bufTracingData = new BufferedOutputStream(gzipTracingData);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static void closeStreams() {
+    if (tracingSampleRate > 0) {
+      if (clientCount.getAndDecrement() <= 0) {
+        try {
+          flush();
+          bufTracingData.close();
+          gzipTracingData.close();
+          baseTracingData.close();
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+  }
+
+  private static void flush() {
+    synchronized (CassandraCQLClient.class) {
+      try {
+        for (Traceinfo.TraceInfo ti : traceBuf) {
+          ti.writeDelimitedTo(bufTracingData);
+        }
+        traceBuf.clear();
+      } catch (IOException e) { throw new RuntimeException(e); }
+    }
+  }
+
+  private static void writeTrace(QueryTrace trace) {
+    Traceinfo.TraceInfo.Builder b =
+      Traceinfo.TraceInfo.newBuilder()
+      .setDurationMicros(trace.getDurationMicros())
+      .setReqType(trace.getRequestType())
+      .setCoordinatorAddr(ByteString.copyFrom(trace.getCoordinator().getAddress()));
+    for (QueryTrace.Event e : trace.getEvents()) {
+      b.addEvents(
+        Traceinfo.Event.newBuilder()
+        .setDesc(e.getDescription())
+        .setDurationMicros(e.getSourceElapsedMicros())
+        .setSource(ByteString.copyFrom(e.getSource().getAddress())));
+    }
+    synchronized (CassandraCQLClient.class) {
+      if (traceBuf.size() == TRACE_BUF_CAP) {
+        flush();
+      }
+      traceBuf.add(b.build());
+    }
+  }
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one
@@ -177,6 +253,15 @@ public class CassandraCQLClient extends DB {
               .setReadTimeoutMillis(Integer.valueOf(readTimoutMillis));
         }
 
+        String tracingDataPath = getProperties().getProperty(TRACING_DATA_PATH_PROPERTY, "");
+        String tracingSampleRateStr = getProperties().getProperty(TRACING_SAMPLE_RATE_PROPERTY, "never");
+        if (tracingSampleRateStr.equals("never")) {
+          tracingSampleRate = -1;
+        } else {
+          tracingSampleRate = Integer.parseInt(tracingSampleRateStr);
+          openStreams(tracingDataPath);
+        }
+
         Metadata metadata = cluster.getMetadata();
         System.err.printf("Connected to cluster: %s\n",
             metadata.getClusterName());
@@ -201,6 +286,7 @@ public class CassandraCQLClient extends DB {
    */
   @Override
   public void cleanup() throws DBException {
+    closeStreams();
     synchronized (INIT_COUNT) {
       final int curInitCount = INIT_COUNT.decrementAndGet();
       if (curInitCount <= 0) {
@@ -250,12 +336,19 @@ public class CassandraCQLClient extends DB {
       stmt = selectBuilder.from(table).where(QueryBuilder.eq(YCSB_KEY, key))
           .limit(1);
       stmt.setConsistencyLevel(readConsistencyLevel);
+      boolean tracing = shouldTrace();
+      if (tracing) {
+        stmt.enableTracing();
+      }
 
       if (debug) {
         System.out.println(stmt.toString());
       }
 
       ResultSet rs = session.execute(stmt);
+      if (tracing) {
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
+      }
 
       if (rs.isExhausted()) {
         return Status.NOT_FOUND;
@@ -339,12 +432,19 @@ public class CassandraCQLClient extends DB {
 
       stmt = new SimpleStatement(scanStmt.toString());
       stmt.setConsistencyLevel(readConsistencyLevel);
+      boolean tracing = shouldTrace();
+      if (tracing) {
+        stmt.enableTracing();
+      }
 
       if (debug) {
         System.out.println(stmt.toString());
       }
 
       ResultSet rs = session.execute(stmt);
+      if (tracing) {
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
+      }
 
       HashMap<String, ByteIterator> tuple;
       while (!rs.isExhausted()) {
@@ -428,12 +528,19 @@ public class CassandraCQLClient extends DB {
       }
 
       insertStmt.setConsistencyLevel(writeConsistencyLevel);
+      boolean tracing = shouldTrace();
+      if (tracing) {
+        insertStmt.enableTracing();
+      }
 
       if (debug) {
         System.out.println(insertStmt.toString());
       }
 
-      session.execute(insertStmt);
+      ResultSet rs = session.execute(insertStmt);
+      if (tracing) {
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
+      }
 
       return Status.OK;
     } catch (Exception e) {
@@ -462,11 +569,19 @@ public class CassandraCQLClient extends DB {
           .where(QueryBuilder.eq(YCSB_KEY, key));
       stmt.setConsistencyLevel(writeConsistencyLevel);
 
+      boolean tracing = shouldTrace();
+      if (tracing) {
+        stmt.enableTracing();
+      }
+
       if (debug) {
         System.out.println(stmt.toString());
       }
 
-      session.execute(stmt);
+      ResultSet rs = session.execute(stmt);
+      if (tracing) {
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
+      }
 
       return Status.OK;
     } catch (Exception e) {

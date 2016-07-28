@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option java_package = "com.yahoo.ycsb.db";
+
+message TraceInfo {
+    string req_type = 1;
+    bytes coordinator_addr = 2;
+    int32 duration_micros = 3;
+    repeated Event events = 4;
+}
+
+message Event {
+    bytes source = 1;
+    string desc = 2;
+    int32 duration_micros = 3;
+}
