@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -82,9 +83,7 @@ public class CassandraCQLClient extends DB {
   public static final String TRACING_DATA_PATH_PROPERTY = "cassandra.tracingdatapath";
   public static final String TRACING_SAMPLE_RATE_PROPERTY = "cassandra.tracingsamplerate";
 
-  private static OutputStream baseTracingData;
-  private static OutputStream gzipTracingData;
-  private static OutputStream bufTracingData;
+  private static AsyncTraceWriter traceWriter = null;
   private static int tracingSampleRate;
 
   private static final AtomicInteger opCount = new AtomicInteger(0);
@@ -106,17 +105,10 @@ public class CassandraCQLClient extends DB {
 
   private static final int TRACE_BUF_CAP = 100;
   private static List<Traceinfo.TraceInfo> traceBuf = new ArrayList<>(TRACE_BUF_CAP);
-  private static AtomicInteger clientCount = new AtomicInteger(0);
 
   private static void openStreams(String traceDataPath) {
-    int clients = clientCount.getAndIncrement();
-    if (clients > 0) {
-      return;
-    }
     try {
-      baseTracingData = Files.newOutputStream(Paths.get(traceDataPath));
-      gzipTracingData = new GZIPOutputStream(baseTracingData);
-      bufTracingData = new BufferedOutputStream(gzipTracingData);
+      traceWriter = new AsyncTraceWriter(Paths.get(traceDataPath));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -124,49 +116,16 @@ public class CassandraCQLClient extends DB {
 
   private static void closeStreams() {
     if (tracingSampleRate > 0) {
-      if (clientCount.getAndDecrement() <= 0) {
-        try {
-          flush();
-          bufTracingData.close();
-          gzipTracingData.close();
-          baseTracingData.close();
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      }
-    }
-  }
-
-  private static void flush() {
-    synchronized (CassandraCQLClient.class) {
       try {
-        for (Traceinfo.TraceInfo ti : traceBuf) {
-          ti.writeDelimitedTo(bufTracingData);
-        }
-        traceBuf.clear();
-      } catch (IOException e) { throw new RuntimeException(e); }
+        traceWriter.close();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
   private static void writeTrace(QueryTrace trace) {
-    Traceinfo.TraceInfo.Builder b =
-      Traceinfo.TraceInfo.newBuilder()
-      .setDurationMicros(trace.getDurationMicros())
-      .setReqType(trace.getRequestType())
-      .setCoordinatorAddr(ByteString.copyFrom(trace.getCoordinator().getAddress()));
-    for (QueryTrace.Event e : trace.getEvents()) {
-      b.addEvents(
-        Traceinfo.Event.newBuilder()
-        .setDesc(e.getDescription())
-        .setDurationMicros(e.getSourceElapsedMicros())
-        .setSource(ByteString.copyFrom(e.getSource().getAddress())));
-    }
-    synchronized (CassandraCQLClient.class) {
-      if (traceBuf.size() == TRACE_BUF_CAP) {
-        flush();
-      }
-      traceBuf.add(b.build());
-    }
+    traceWriter.write(trace);
   }
 
   /**
@@ -286,10 +245,10 @@ public class CassandraCQLClient extends DB {
    */
   @Override
   public void cleanup() throws DBException {
-    closeStreams();
     synchronized (INIT_COUNT) {
       final int curInitCount = INIT_COUNT.decrementAndGet();
       if (curInitCount <= 0) {
+        closeStreams();
         session.close();
         cluster.close();
         cluster = null;
