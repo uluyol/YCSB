@@ -58,20 +58,17 @@ public class ScrambledZipfianGenerator extends NumberGenerator
 		this(_min,_max,ZipfianGenerator.ZIPFIAN_CONSTANT);
 	}
 
-	/**
-	 * Create a zipfian generator for the specified number of items using the specified zipfian constant.
-	 * 
-	 * @param _items The number of items in the distribution.
-	 * @param _zipfianconstant The zipfian constant to use.
-	 */
-	/*
-// not supported, as the value of zeta depends on the zipfian constant, and we have only precomputed zeta for one zipfian constant
-	public ScrambledZipfianGenerator(long _items, double _zipfianconstant)
-	{
-		this(0,_items-1,_zipfianconstant);
-	}
-*/
-	
+  public static ScrambledZipfianGenerator withZetan(long items, double theta, double zetan) {
+    return new ScrambledZipfianGenerator(0, items-1, theta, zetan);
+  }
+
+  private ScrambledZipfianGenerator(long min, long max, double theta, double zetan) {
+    _min = min;
+    _max = max;
+    _itemcount = _max-_min+1;
+    gen = new ZipfianGenerator(0, ITEM_COUNT, theta, zetan);
+  }
+
 	/**
 	 * Create a zipfian generator for items between min and max (inclusive) for the specified zipfian constant. If you 
 	 * use a zipfian constant other than 0.99, this will take a long time to complete because we need to recompute zeta.

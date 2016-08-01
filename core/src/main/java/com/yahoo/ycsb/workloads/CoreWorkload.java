@@ -244,6 +244,12 @@ public class CoreWorkload extends Workload {
    */
   public static final String REQUEST_DISTRIBUTION_PROPERTY_DEFAULT = "uniform";
 
+  public static final String ZIPFIAN_THETA_PROPERTY = "zftheta";
+  public static final String ZIPFIAN_THETA_PROPERTY_DEFAULT = "0.99";
+
+  public static final String ZIPFIAN_ZETAN_PROPERTY = "zfzetan";
+  public static final String ZIPFIAN_ZETAN_PROPERTY_DEFAULT = "26.46902820178302";
+
   /**
    * The name of the property for the max scan length (number of records)
    */
@@ -388,6 +394,10 @@ public class CoreWorkload extends Workload {
       recordcount = Integer.MAX_VALUE;
     String requestdistrib =
         p.getProperty(REQUEST_DISTRIBUTION_PROPERTY, REQUEST_DISTRIBUTION_PROPERTY_DEFAULT);
+    double zipfianTheta = Double.parseDouble(
+      p.getProperty(ZIPFIAN_THETA_PROPERTY, ZIPFIAN_THETA_PROPERTY_DEFAULT));
+    double zipfianZetan = Double.parseDouble(
+      p.getProperty(ZIPFIAN_ZETAN_PROPERTY, ZIPFIAN_ZETAN_PROPERTY_DEFAULT));
     int maxscanlength =
         Integer.parseInt(p.getProperty(MAX_SCAN_LENGTH_PROPERTY, MAX_SCAN_LENGTH_PROPERTY_DEFAULT));
     String scanlengthdistrib =
@@ -467,7 +477,7 @@ public class CoreWorkload extends Workload {
       int opcount = Integer.parseInt(p.getProperty(Client.OPERATION_COUNT_PROPERTY));
       int expectednewkeys = (int) ((opcount) * insertproportion * 2.0); // 2 is fudge factor
 
-      keychooser = new ScrambledZipfianGenerator(recordcount + expectednewkeys);
+      keychooser = ScrambledZipfianGenerator.withZetan(recordcount + expectednewkeys, zipfianTheta, zipfianZetan);
     } else if (requestdistrib.compareTo("latest") == 0) {
       keychooser = new SkewedLatestGenerator(transactioninsertkeysequence);
     } else if (requestdistrib.equals("hotspot")) {
