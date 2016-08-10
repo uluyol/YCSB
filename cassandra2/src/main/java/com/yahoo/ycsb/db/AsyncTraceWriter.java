@@ -52,7 +52,7 @@ public final class AsyncTraceWriter {
           }
           if (System.currentTimeMillis() >= trace.get().startTime+delayMillis) {
             try {
-              writeToOutput(trace.get().trace, gzipOut);
+              writeToOutput(trace.get().trace, trace.get().startTime, gzipOut);
             } catch (IOException e) {
               throw new RuntimeException(e);
             }
@@ -66,11 +66,12 @@ public final class AsyncTraceWriter {
     asyncWriter.start();
   }
 
-  private static void writeToOutput(QueryTrace t, OutputStream out) throws IOException {
+  private static void writeToOutput(QueryTrace t, long reqEndMillis, OutputStream out) throws IOException {
     Traceinfo.TraceInfo.Builder b =
       Traceinfo.TraceInfo.newBuilder()
         .setDurationMicros(t.getDurationMicros())
         .setReqType(t.getRequestType())
+        .setReqEndTimeMillis(reqEndMillis)
         .setCoordinatorAddr(ByteString.copyFrom(t.getCoordinator().getAddress()));
     for (QueryTrace.Event e : t.getEvents()) {
       b.addEvents(

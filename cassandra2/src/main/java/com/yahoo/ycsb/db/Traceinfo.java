@@ -55,6 +55,11 @@ public final class Traceinfo {
      */
     com.yahoo.ycsb.db.Traceinfo.EventOrBuilder getEventsOrBuilder(
         int index);
+
+    /**
+     * <code>optional int64 req_end_time_millis = 5;</code>
+     */
+    long getReqEndTimeMillis();
   }
   /**
    * Protobuf type {@code TraceInfo}
@@ -72,6 +77,7 @@ public final class Traceinfo {
       coordinatorAddr_ = com.google.protobuf.ByteString.EMPTY;
       durationMicros_ = 0;
       events_ = java.util.Collections.emptyList();
+      reqEndTimeMillis_ = 0L;
     }
 
     @java.lang.Override
@@ -121,6 +127,11 @@ public final class Traceinfo {
                 mutable_bitField0_ |= 0x00000008;
               }
               events_.add(input.readMessage(com.yahoo.ycsb.db.Traceinfo.Event.parser(), extensionRegistry));
+              break;
+            }
+            case 40: {
+
+              reqEndTimeMillis_ = input.readInt64();
               break;
             }
           }
@@ -237,6 +248,15 @@ public final class Traceinfo {
       return events_.get(index);
     }
 
+    public static final int REQ_END_TIME_MILLIS_FIELD_NUMBER = 5;
+    private long reqEndTimeMillis_;
+    /**
+     * <code>optional int64 req_end_time_millis = 5;</code>
+     */
+    public long getReqEndTimeMillis() {
+      return reqEndTimeMillis_;
+    }
+
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
       byte isInitialized = memoizedIsInitialized;
@@ -261,6 +281,9 @@ public final class Traceinfo {
       for (int i = 0; i < events_.size(); i++) {
         output.writeMessage(4, events_.get(i));
       }
+      if (reqEndTimeMillis_ != 0L) {
+        output.writeInt64(5, reqEndTimeMillis_);
+      }
     }
 
     public int getSerializedSize() {
@@ -282,6 +305,10 @@ public final class Traceinfo {
       for (int i = 0; i < events_.size(); i++) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(4, events_.get(i));
+      }
+      if (reqEndTimeMillis_ != 0L) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeInt64Size(5, reqEndTimeMillis_);
       }
       memoizedSize = size;
       return size;
@@ -413,6 +440,8 @@ public final class Traceinfo {
         } else {
           eventsBuilder_.clear();
         }
+        reqEndTimeMillis_ = 0L;
+
         return this;
       }
 
@@ -449,6 +478,7 @@ public final class Traceinfo {
         } else {
           result.events_ = eventsBuilder_.build();
         }
+        result.reqEndTimeMillis_ = reqEndTimeMillis_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -500,6 +530,9 @@ public final class Traceinfo {
               eventsBuilder_.addAllMessages(other.events_);
             }
           }
+        }
+        if (other.getReqEndTimeMillis() != 0L) {
+          setReqEndTimeMillis(other.getReqEndTimeMillis());
         }
         onChanged();
         return this;
@@ -890,6 +923,32 @@ public final class Traceinfo {
           events_ = null;
         }
         return eventsBuilder_;
+      }
+
+      private long reqEndTimeMillis_ ;
+      /**
+       * <code>optional int64 req_end_time_millis = 5;</code>
+       */
+      public long getReqEndTimeMillis() {
+        return reqEndTimeMillis_;
+      }
+      /**
+       * <code>optional int64 req_end_time_millis = 5;</code>
+       */
+      public Builder setReqEndTimeMillis(long value) {
+        
+        reqEndTimeMillis_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>optional int64 req_end_time_millis = 5;</code>
+       */
+      public Builder clearReqEndTimeMillis() {
+        
+        reqEndTimeMillis_ = 0L;
+        onChanged();
+        return this;
       }
       public final Builder setUnknownFields(
           final com.google.protobuf.UnknownFieldSet unknownFields) {
@@ -1526,12 +1585,13 @@ public final class Traceinfo {
       descriptor;
   static {
     java.lang.String[] descriptorData = {
-      "\n\017traceinfo.proto\"h\n\tTraceInfo\022\020\n\010req_ty" +
-      "pe\030\001 \001(\t\022\030\n\020coordinator_addr\030\002 \001(\014\022\027\n\017du" +
-      "ration_micros\030\003 \001(\005\022\026\n\006events\030\004 \003(\0132\006.Ev" +
-      "ent\">\n\005Event\022\016\n\006source\030\001 \001(\014\022\014\n\004desc\030\002 \001" +
-      "(\t\022\027\n\017duration_micros\030\003 \001(\005B\023\n\021com.yahoo" +
-      ".ycsb.dbb\006proto3"
+      "\n\017traceinfo.proto\"\205\001\n\tTraceInfo\022\020\n\010req_t" +
+      "ype\030\001 \001(\t\022\030\n\020coordinator_addr\030\002 \001(\014\022\027\n\017d" +
+      "uration_micros\030\003 \001(\005\022\026\n\006events\030\004 \003(\0132\006.E" +
+      "vent\022\033\n\023req_end_time_millis\030\005 \001(\003\">\n\005Eve" +
+      "nt\022\016\n\006source\030\001 \001(\014\022\014\n\004desc\030\002 \001(\t\022\027\n\017dura" +
+      "tion_micros\030\003 \001(\005B\023\n\021com.yahoo.ycsb.dbb\006" +
+      "proto3"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
         new com.google.protobuf.Descriptors.FileDescriptor.    InternalDescriptorAssigner() {
@@ -1550,7 +1610,7 @@ public final class Traceinfo {
     internal_static_TraceInfo_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessage.FieldAccessorTable(
         internal_static_TraceInfo_descriptor,
-        new java.lang.String[] { "ReqType", "CoordinatorAddr", "DurationMicros", "Events", });
+        new java.lang.String[] { "ReqType", "CoordinatorAddr", "DurationMicros", "Events", "ReqEndTimeMillis", });
     internal_static_Event_descriptor =
       getDescriptor().getMessageTypes().get(1);
     internal_static_Event_fieldAccessorTable = new

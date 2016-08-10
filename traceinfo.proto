@@ -7,6 +7,7 @@ message TraceInfo {
     bytes coordinator_addr = 2;
     int32 duration_micros = 3;
     repeated Event events = 4;
+    int64 req_end_time_millis = 5;
 }
 
 message Event {
