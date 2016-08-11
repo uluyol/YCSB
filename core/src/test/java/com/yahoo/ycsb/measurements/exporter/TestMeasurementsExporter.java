@@ -43,7 +43,7 @@ public class TestMeasurementsExporter {
         ZipfianGenerator zipfian = new ZipfianGenerator(min, max);
         for (int i = 0; i < 1000; i++) {
             int rnd = zipfian.nextValue().intValue();
-            mm.measure("UPDATE", rnd);
+            mm.measure("UPDATE", rnd, false);
         }
         mm.exportMeasurements(export);
         export.close();

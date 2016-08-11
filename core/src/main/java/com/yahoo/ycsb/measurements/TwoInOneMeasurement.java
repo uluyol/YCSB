@@ -41,7 +41,7 @@ public class TwoInOneMeasurement extends OneMeasurement {
   /**
    * No need for synchronization, using CHM to deal with that
    *
-   * @see com.yahoo.ycsb.OneMeasurement#reportStatus(int)
+   * @see OneMeasurement#measure(int, boolean)
    */
   @Override
   public void reportStatus(final Status status) {
@@ -52,12 +52,12 @@ public class TwoInOneMeasurement extends OneMeasurement {
    * It appears latency is reported in micros.
    * Using {@link Recorder} to support concurrent updates to histogram.
    *
-   * @see com.yahoo.ycsb.OneMeasurement#measure(int)
+   * @see OneMeasurement#measure(int, boolean)
    */
   @Override
-  public void measure(int latencyInMicros) {
-    thing1.measure(latencyInMicros);
-    thing2.measure(latencyInMicros);
+  public void measure(int latencyInMicros, boolean wasTraced) {
+    thing1.measure(latencyInMicros, wasTraced);
+    thing2.measure(latencyInMicros, wasTraced);
   }
 
   /**

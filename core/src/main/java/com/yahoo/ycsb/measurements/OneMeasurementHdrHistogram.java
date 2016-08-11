@@ -43,9 +43,12 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
 
   // we need one log per measurement histogram
   final PrintStream log;
+  final PrintStream tracedLog;
   final HistogramLogWriter histogramLogWriter;
+  final HistogramLogWriter tracedHistogramLogWriter;
 
   final Recorder histogram;
+  final Recorder tracedHistogram;
   Histogram totalHistogram;
 
   /**
@@ -66,33 +69,45 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
     boolean shouldLog = Boolean.parseBoolean(props.getProperty("hdrhistogram.fileoutput", "false"));
     if (!shouldLog) {
       log = null;
+      tracedLog = null;
       histogramLogWriter = null;
+      tracedHistogramLogWriter = null;
     } else {
       try {
         final String hdrOutputFilename = props.getProperty("hdrhistogram.output.path", "") + name + ".hdr";
+        final String tracedOutputFilename = props.getProperty("hdrhistogram.output.path", "") + name + ".traced.hdr";
         log = new PrintStream(new FileOutputStream(hdrOutputFilename), false);
+        tracedLog = new PrintStream(new FileOutputStream(tracedOutputFilename), false);
       } catch (FileNotFoundException e) {
         throw new RuntimeException("Failed to open hdr histogram output file", e);
       }
       histogramLogWriter = new HistogramLogWriter(log);
-      histogramLogWriter.outputComment("[Logging for: " + name + "]");
-      histogramLogWriter.outputLogFormatVersion();
+      tracedHistogramLogWriter = new HistogramLogWriter(tracedLog);
+
       long now = System.currentTimeMillis();
-      histogramLogWriter.outputStartTime(now);
-      histogramLogWriter.setBaseTime(now);
-      histogramLogWriter.outputLegend();
+      for (HistogramLogWriter w : new HistogramLogWriter[]{histogramLogWriter, tracedHistogramLogWriter}) {
+        w.outputComment("[Logging for: " + name + "]");
+        w.outputLogFormatVersion();
+        w.outputStartTime(now);
+        w.setBaseTime(now);
+        w.outputLegend();
+      }
     }
     histogram = new Recorder(3);
+    tracedHistogram = new Recorder(3);
   }
 
   /**
     * It appears latency is reported in micros.
     * Using {@link Recorder} to support concurrent updates to histogram.
     *
-    * @see com.yahoo.ycsb.OneMeasurement#measure(int)
+    * @see OneMeasurement#measure(int, boolean)
     */
-  public void measure(int latencyInMicros) {
+  public void measure(int latencyInMicros, boolean wasTraced) {
     histogram.recordValue(latencyInMicros);
+    if (wasTraced) {
+      tracedHistogram.recordValue(latencyInMicros);
+    }
   }
 
   /**
@@ -104,10 +119,13 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
   public void exportMeasurements(MeasurementsExporter exporter) throws IOException {
     // accumulate the last interval which was not caught by status thread
     Histogram intervalHistogram = getIntervalHistogramAndAccumulate();
+    Histogram tracedIntervalHistogram = getTracedIntervalHistogramAndAccumulate();
     if (histogramLogWriter != null) {
       histogramLogWriter.outputIntervalHistogram(intervalHistogram);
+      tracedHistogramLogWriter.outputIntervalHistogram(tracedIntervalHistogram);
       // we can close now
       log.close();
+      tracedLog.close();
     }
     exporter.write(getName(), "Operations", totalHistogram.getTotalCount());
     exporter.write(getName(), "AverageLatency(us)", totalHistogram.getMean());
@@ -131,9 +149,11 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
 	@Override
 	public String getSummary() {
 		Histogram intervalHistogram = getIntervalHistogramAndAccumulate();
+    Histogram tracedIntervalHistogram = getTracedIntervalHistogramAndAccumulate();
 		// we use the summary interval as the histogram file interval.
 		if (histogramLogWriter != null) {
 			histogramLogWriter.outputIntervalHistogram(intervalHistogram);
+      tracedHistogramLogWriter.outputIntervalHistogram(tracedIntervalHistogram);
 		}
 
 		DecimalFormat d = new DecimalFormat("#.##");
@@ -155,6 +175,10 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
 		}
 		return intervalHistogram;
 	}
+
+	private Histogram getTracedIntervalHistogramAndAccumulate() {
+	  return tracedHistogram.getIntervalHistogram();
+  }
 
     /**
      * Helper method to parse the given percentile value string

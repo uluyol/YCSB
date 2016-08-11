@@ -133,7 +133,7 @@ public class OneMeasurementRaw extends OneMeasurement {
   }
 
   @Override
-  public synchronized void measure(int latency) {
+  public synchronized void measure(int latency, boolean wasTraced) {
     totalLatency += latency;
     windowTotalLatency += latency;
     windowOperations++;

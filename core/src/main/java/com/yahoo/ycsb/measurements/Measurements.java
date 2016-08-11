@@ -193,14 +193,14 @@ public class Measurements {
    * Report a single value of a single metric. E.g. for read latency, operation="READ" and latency is the measured
    * value.
    */
-  public void measure(String operation, int latency)
+  public void measure(String operation, int latency, boolean wasTraced)
   {
     if(_measurementInterval==1)
       return;
     try
     {
       OneMeasurement m = getOpMeasurement(operation);
-      m.measure(latency);
+      m.measure(latency, wasTraced);
     }
     // This seems like a terribly hacky way to cover up for a bug in the measurement code
     catch (java.lang.ArrayIndexOutOfBoundsException e)
@@ -215,14 +215,14 @@ public class Measurements {
    * Report a single value of a single metric. E.g. for read latency, operation="READ" and latency is the measured
    * value.
    */
-  public void measureIntended(String operation, int latency)
+  public void measureIntended(String operation, int latency, boolean wasTraced)
   {
     if(_measurementInterval==0)
       return;
     try
     {
       OneMeasurement m = getOpIntendedMeasurement(operation);
-      m.measure(latency);
+      m.measure(latency, wasTraced);
     }
     // This seems like a terribly hacky way to cover up for a bug in the measurement code
     catch (java.lang.ArrayIndexOutOfBoundsException e)

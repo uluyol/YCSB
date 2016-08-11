@@ -655,7 +655,7 @@ public class CoreWorkload extends Workload {
       verifyStatus = Status.ERROR;
     }
     long endTime = System.nanoTime();
-    _measurements.measure("VERIFY", (int) (endTime - startTime) / 1000);
+    _measurements.measure("VERIFY", (int) (endTime - startTime) / 1000, false);
     _measurements.reportStatus("VERIFY", verifyStatus);
   }
 
@@ -743,8 +743,8 @@ public class CoreWorkload extends Workload {
       verifyRow(keyname, cells);
     }
 
-    _measurements.measure("READ-MODIFY-WRITE", (int) ((en - st) / 1000));
-    _measurements.measureIntended("READ-MODIFY-WRITE", (int) ((en - ist) / 1000));
+    _measurements.measure("READ-MODIFY-WRITE", (int) ((en - st) / 1000), false);
+    _measurements.measureIntended("READ-MODIFY-WRITE", (int) ((en - ist) / 1000), false);
   }
 
   public void doTransactionScan(DB db) {

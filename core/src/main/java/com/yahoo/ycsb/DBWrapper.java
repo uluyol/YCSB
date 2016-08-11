@@ -164,9 +164,11 @@ public class DBWrapper extends DB
       }
     }
     _measurements.measure(measurementName,
-        (int)((endTimeNanos-startTimeNanos)/1000));
+        (int)((endTimeNanos-startTimeNanos)/1000),
+        result.wasTraced());
     _measurements.measureIntended(measurementName,
-        (int)((endTimeNanos-intendedStartTimeNanos)/1000));
+        (int)((endTimeNanos-intendedStartTimeNanos)/1000),
+        result.wasTraced());
   }
 
   /**

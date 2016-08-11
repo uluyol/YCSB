@@ -97,7 +97,7 @@ public class OneMeasurementHistogram extends OneMeasurement
   /* (non-Javadoc)
    * @see com.yahoo.ycsb.OneMeasurement#measure(int)
    */
-  public synchronized void measure(int latency)
+  public synchronized void measure(int latency, boolean wasTraced)
   {
       //latency reported in us and collected in bucket by ms.
     if (latency/1000>=_buckets)

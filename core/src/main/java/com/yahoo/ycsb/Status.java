@@ -23,25 +23,22 @@ package com.yahoo.ycsb;
 public class Status {
   private final String name;
   private final String description;
+  private final boolean traced;
 
-
-  /**
-   * @param name A short name for the status.
-   * @param description A description of the status.
-   */
-  public Status(String name, String description) {
+  public Status(String name, String description, boolean traced) {
     super();
     this.name = name;
     this.description = description;
+    this.traced = traced;
   }
 
-  public String getName() {
-    return name;
+  public Status(String name, String desc) {
+    this(name, desc, false);
   }
 
-  public String getDescription() {
-    return description;
-  }
+  public String getName() { return name; }
+  public String getDescription() { return description; }
+  public boolean wasTraced() { return traced; }
 
   @Override
   public String toString() {
@@ -87,6 +84,7 @@ public class Status {
   public static final Status BAD_REQUEST = new Status("BAD_REQUEST", "The request was not valid.");
   public static final Status FORBIDDEN = new Status("FORBIDDEN", "The operation is forbidden.");
   public static final Status SERVICE_UNAVAILABLE = new Status("SERVICE_UNAVAILABLE", "Dependant service for the current binding is not available.");
-  
+
+  public static final Status TRACED_OK = new Status(OK.getName(), OK.getDescription(), true);
 }
 

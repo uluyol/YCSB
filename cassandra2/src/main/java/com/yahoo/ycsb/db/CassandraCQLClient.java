@@ -326,6 +326,10 @@ public class CassandraCQLClient extends DB {
         }
       }
 
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
+
       return Status.OK;
 
     } catch (Exception e) {
@@ -424,6 +428,10 @@ public class CassandraCQLClient extends DB {
         result.add(tuple);
       }
 
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
+
       return Status.OK;
 
     } catch (Exception e) {
@@ -501,6 +509,10 @@ public class CassandraCQLClient extends DB {
         writeTrace(rs.getExecutionInfo().getQueryTrace());
       }
 
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
+
       return Status.OK;
     } catch (Exception e) {
       e.printStackTrace();
@@ -540,6 +552,10 @@ public class CassandraCQLClient extends DB {
       ResultSet rs = session.execute(stmt);
       if (tracing) {
         writeTrace(rs.getExecutionInfo().getQueryTrace());
+      }
+
+      if (tracing) {
+        return Status.TRACED_OK;
       }
 
       return Status.OK;

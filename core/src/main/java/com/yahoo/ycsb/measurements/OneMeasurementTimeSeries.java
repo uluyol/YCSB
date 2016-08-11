@@ -101,7 +101,7 @@ public class OneMeasurementTimeSeries extends OneMeasurement
   }
 
   @Override
-  public void measure(int latency)
+  public void measure(int latency, boolean wasTraced)
   {
     checkEndOfUnit(false);
 
