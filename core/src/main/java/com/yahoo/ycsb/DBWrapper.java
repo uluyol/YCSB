@@ -155,7 +155,7 @@ public class DBWrapper extends DB
   private void measure(String op, Status result, long intendedStartTimeNanos,
       long startTimeNanos, long endTimeNanos) {
     String measurementName = op;
-    if (result != Status.OK) {
+    if (!result.equals(Status.OK)) {
       if (this.reportLatencyForEachError ||
           this.latencyTrackedErrors.contains(result.getName())) {
         measurementName = op + "-" + result.getName();
