@@ -19,6 +19,11 @@ package com.yahoo.ycsb.workloads;
 
 import java.util.Properties;
 
+import com.google.common.base.Function;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.yahoo.ycsb.*;
 import com.yahoo.ycsb.generator.*;
 import com.yahoo.ycsb.measurements.Measurements;
@@ -30,6 +35,8 @@ import java.util.Vector;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 
 /**
  * The core benchmark scenario. Represents a set of clients doing simple CRUD operations. The
@@ -323,6 +330,9 @@ public class CoreWorkload extends Workload {
 
   private Measurements _measurements = Measurements.getMeasurements();
 
+  private static final ListeningExecutorService retryExecutor =
+    MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
+
   protected static NumberGenerator getFieldLengthGenerator(Properties p) throws WorkloadException {
     NumberGenerator fieldlengthgenerator;
     String fieldlengthdistribution = p.getProperty(
@@ -568,40 +578,45 @@ public class CoreWorkload extends Workload {
    * have no side effects other than DB operations.
    */
   @Override
-  public boolean doInsert(DB db, Object threadstate) {
+  public ListenableFuture<Boolean> doInsert(final DB db, Object threadstate) {
     int keynum = keysequence.nextValue().intValue();
-    String dbkey = buildKeyName(keynum);
-    HashMap<String, ByteIterator> values = buildValues(dbkey);
+    final String dbkey = buildKeyName(keynum);
+    final HashMap<String, ByteIterator> values = buildValues(dbkey);
 
-    Status status;
-    int numOfRetries = 0;
-    do {
-      status = db.insert(table, dbkey, values);
-      if (status == Status.OK) {
-        break;
+    return retryExecutor.submit(new Callable<Boolean>() {
+      @Override
+      public Boolean call() throws Exception {
+        Status status;
+        int numOfRetries = 0;
+        do {
+          status = Futures.getUnchecked(db.insert(table, dbkey, values));
+          if (status == Status.OK) {
+            break;
+          }
+          // Retry if configured. Without retrying, the load process will fail
+          // even if one single insertion fails. User can optionally configure
+          // an insertion retry limit (default is 0) to enable retry.
+          if (++numOfRetries <= insertionRetryLimit) {
+            System.err.println("Retrying insertion, retry count: " + numOfRetries);
+            try {
+              // Sleep for a random number between [0.8, 1.2)*insertionRetryInterval.
+              int sleepTime = (int) (1000 * insertionRetryInterval * (0.8 + 0.4 * Math.random()));
+              Thread.sleep(sleepTime);
+            } catch (InterruptedException e) {
+              break;
+            }
+
+          } else {
+            System.err.println("Error inserting, not retrying any more. number of attempts: " + numOfRetries +
+                "Insertion Retry Limit: " + insertionRetryLimit);
+            break;
+
+          }
+        } while (true);
+
+        return (status == Status.OK);
       }
-      // Retry if configured. Without retrying, the load process will fail
-      // even if one single insertion fails. User can optionally configure
-      // an insertion retry limit (default is 0) to enable retry.
-      if (++numOfRetries <= insertionRetryLimit) {
-        System.err.println("Retrying insertion, retry count: " + numOfRetries);
-        try {
-          // Sleep for a random number between [0.8, 1.2)*insertionRetryInterval.
-          int sleepTime = (int) (1000 * insertionRetryInterval * (0.8 + 0.4 * Math.random()));
-          Thread.sleep(sleepTime);
-        } catch (InterruptedException e) {
-          break;
-        }
-
-      } else {
-        System.err.println("Error inserting, not retrying any more. number of attempts: " + numOfRetries +
-            "Insertion Retry Limit: " + insertionRetryLimit);
-        break;
-
-      }
-    } while (true);
-
-    return (status == Status.OK);
+    });
   }
 
   /**
@@ -611,26 +626,20 @@ public class CoreWorkload extends Workload {
    * have no side effects other than DB operations.
    */
   @Override
-  public boolean doTransaction(DB db, Object threadstate) {
+  public ListenableFuture<Boolean> doTransaction(DB db, Object threadstate) {
     switch (operationchooser.nextString()) {
     
       case "READ":
-        doTransactionRead(db);
-        break;
+        return doTransactionRead(db);
       case "UPDATE":
-        doTransactionUpdate(db);
-        break;
-      case "INSERT": 
-        doTransactionInsert(db);
-        break;
+        return doTransactionUpdate(db);
+      case "INSERT":
+        return doTransactionInsert(db);
       case "SCAN":
-        doTransactionScan(db);
-        break;
+        return doTransactionScan(db);
       default:
-        doTransactionReadModifyWrite(db);
+        return doTransactionReadModifyWrite(db);
     } 
-
-    return true;
   }
 
   /**
@@ -673,7 +682,14 @@ public class CoreWorkload extends Workload {
     return keynum;
   }
 
-  public void doTransactionRead(DB db) {
+  private static final ListenableFuture<Boolean> trueWhenDone(ListenableFuture<Status> s) {
+    return Futures.transform(s, new Function<Status, Boolean>() {
+      @Override
+      public Boolean apply(Status status) { return true; }
+    });
+  }
+
+  public ListenableFuture<Boolean> doTransactionRead(DB db) {
     // choose a random key
     int keynum = nextKeynum();
 
@@ -693,14 +709,18 @@ public class CoreWorkload extends Workload {
     }
 
     HashMap<String, ByteIterator> cells = new HashMap<String, ByteIterator>();
-    db.read(table, keyname, fields, cells);
+    ListenableFuture<Status> s = db.read(table, keyname, fields, cells);
 
     if (dataintegrity) {
+      Futures.getUnchecked(s);
       verifyRow(keyname, cells);
     }
+
+    return trueWhenDone(s);
   }
-  
-  public void doTransactionReadModifyWrite(DB db) {
+
+  // This is not compatible with open-loop execution
+  public ListenableFuture<Boolean> doTransactionReadModifyWrite(DB db) {
     // choose a random key
     int keynum = nextKeynum();
 
@@ -733,9 +753,8 @@ public class CoreWorkload extends Workload {
 
     long ist = _measurements.getIntendedtartTimeNs();
     long st = System.nanoTime();
-    db.read(table, keyname, fields, cells);
-
-    db.update(table, keyname, values);
+    Futures.getUnchecked(db.read(table, keyname, fields, cells));
+    Futures.getUnchecked(db.update(table, keyname, values));
 
     long en = System.nanoTime();
 
@@ -745,9 +764,10 @@ public class CoreWorkload extends Workload {
 
     _measurements.measure("READ-MODIFY-WRITE", (int) ((en - st) / 1000), false);
     _measurements.measureIntended("READ-MODIFY-WRITE", (int) ((en - ist) / 1000), false);
+    return Futures.immediateFuture(true);
   }
 
-  public void doTransactionScan(DB db) {
+  public ListenableFuture<Boolean> doTransactionScan(DB db) {
     // choose a random key
     int keynum = nextKeynum();
 
@@ -766,10 +786,10 @@ public class CoreWorkload extends Workload {
       fields.add(fieldname);
     }
 
-    db.scan(table, startkeyname, len, fields, new Vector<HashMap<String, ByteIterator>>());
+    return trueWhenDone(db.scan(table, startkeyname, len, fields, new Vector<HashMap<String, ByteIterator>>()));
   }
 
-  public void doTransactionUpdate(DB db) {
+  public ListenableFuture<Boolean> doTransactionUpdate(DB db) {
     // choose a random key
     int keynum = nextKeynum();
 
@@ -785,20 +805,22 @@ public class CoreWorkload extends Workload {
       values = buildSingleValue(keyname);
     }
 
-    db.update(table, keyname, values);
+    return trueWhenDone(db.update(table, keyname, values));
   }
 
-  public void doTransactionInsert(DB db) {
+  public ListenableFuture<Boolean> doTransactionInsert(DB db) {
     // choose the next key
     int keynum = transactioninsertkeysequence.nextValue();
 
+    ListenableFuture<Status> s;
     try {
       String dbkey = buildKeyName(keynum);
 
       HashMap<String, ByteIterator> values = buildValues(dbkey);
-      db.insert(table, dbkey, values);
+      s = db.insert(table, dbkey, values);
     } finally {
       transactioninsertkeysequence.acknowledge(keynum);
     }
+    return trueWhenDone(s);
   }
 }

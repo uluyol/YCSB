@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Vector;
 
+import com.google.common.util.concurrent.Futures;
 import com.yahoo.ycsb.Client;
 import com.yahoo.ycsb.workloads.*;
 
@@ -295,7 +296,7 @@ public class CommandLine
 		  }
 		  
 		  HashMap<String,ByteIterator> result=new HashMap<String,ByteIterator>();
-		  Status ret=db.read(table,tokens[1],fields,result);
+		  Status ret = Futures.getUnchecked(db.read(table,tokens[1],fields,result));
 		  System.out.println("Return code: "+ret.getName());
 		  for (Map.Entry<String,ByteIterator> ent : result.entrySet())
 		  {
@@ -324,7 +325,7 @@ public class CommandLine
 		  }
 		  
 		  Vector<HashMap<String,ByteIterator>> results=new Vector<HashMap<String,ByteIterator>>();
-		  Status ret=db.scan(table,tokens[1],Integer.parseInt(tokens[2]),fields,results);
+		  Status ret = Futures.getUnchecked(db.scan(table,tokens[1],Integer.parseInt(tokens[2]),fields,results));
 		  System.out.println("Result: "+ret.getName());
 		  int record=0;
 		  if (results.isEmpty())
@@ -362,7 +363,7 @@ public class CommandLine
 		     values.put(nv[0],new StringByteIterator(nv[1]));
 		  }
 
-		  Status ret=db.update(table,tokens[1],values);
+		  Status ret = Futures.getUnchecked(db.update(table,tokens[1],values));
 		  System.out.println("Result: "+ret.getName());
 	       }		  
 	    }
@@ -382,7 +383,7 @@ public class CommandLine
 		     values.put(nv[0],new StringByteIterator(nv[1]));
 		  }
 
-		  Status ret=db.insert(table,tokens[1],values);
+		  Status ret = Futures.getUnchecked(db.insert(table,tokens[1],values));
 		  System.out.println("Result: "+ret.getName());
 	       }		  
 	    }
@@ -394,7 +395,7 @@ public class CommandLine
 	       }
 	       else 
 	       {
-		  Status ret=db.delete(table,tokens[1]);
+		  Status ret = Futures.getUnchecked(db.delete(table,tokens[1]));
 		  System.out.println("Return result: "+ret.getName());
 	       }		  
 	    }

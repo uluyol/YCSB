@@ -2,6 +2,8 @@ package com.yahoo.ycsb.db;
 
 import com.datastax.driver.core.QueryTrace;
 import com.google.common.base.Optional;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
 
 import java.io.IOException;
@@ -52,7 +54,7 @@ public final class AsyncTraceWriter {
           }
           if (System.currentTimeMillis() >= trace.get().startTime+delayMillis) {
             try {
-              writeToOutput(trace.get().trace, trace.get().startTime, gzipOut);
+              writeToOutput(Futures.getUnchecked(trace.get().trace), trace.get().startTime, gzipOut);
             } catch (IOException e) {
               throw new RuntimeException(e);
             }
@@ -83,7 +85,7 @@ public final class AsyncTraceWriter {
     b.build().writeDelimitedTo(out);
   }
 
-  public void write(QueryTrace t) {
+  public void write(ListenableFuture<QueryTrace> t) {
     work.add(Optional.of(new MarkedQueryTrace(t)));
   }
 
@@ -103,9 +105,9 @@ public final class AsyncTraceWriter {
 
   private static final class MarkedQueryTrace {
     public final long startTime;
-    public final QueryTrace trace;
+    public final ListenableFuture<QueryTrace> trace;
 
-    public MarkedQueryTrace(QueryTrace trace) {
+    public MarkedQueryTrace(ListenableFuture<QueryTrace> trace) {
       startTime = System.currentTimeMillis();
       this.trace = trace;
     }

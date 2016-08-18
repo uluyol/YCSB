@@ -32,6 +32,7 @@ import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
+import com.google.common.util.concurrent.Futures;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.StringByteIterator;
@@ -102,7 +103,7 @@ public class CassandraCQLClientTest {
   @Test
   public void testReadMissingRow() throws Exception {
     final HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
-    final Status status = client.read(TABLE, "Missing row", null, result);
+    final Status status = Futures.getUnchecked(client.read(TABLE, "Missing row", null, result));
     assertThat(result.size(), is(0));
     assertThat(status, is(Status.NOT_FOUND));
   }
@@ -122,7 +123,7 @@ public class CassandraCQLClientTest {
     insertRow();
 
     final HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
-    final Status status = client.read(CoreWorkload.table, DEFAULT_ROW_KEY, null, result);
+    final Status status = Futures.getUnchecked(client.read(CoreWorkload.table, DEFAULT_ROW_KEY, null, result));
     assertThat(status, is(Status.OK));
     assertThat(result.entrySet(), hasSize(11));
     assertThat(result, hasEntry("field2", null));
@@ -143,7 +144,7 @@ public class CassandraCQLClientTest {
     insertRow();
     final HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
     final Set<String> fields = Sets.newHashSet("field1");
-    final Status status = client.read(CoreWorkload.table, DEFAULT_ROW_KEY, fields, result);
+    final Status status = Futures.getUnchecked(client.read(CoreWorkload.table, DEFAULT_ROW_KEY, fields, result));
     assertThat(status, is(Status.OK));
     assertThat(result.entrySet(), hasSize(1));
     final Map<String, String> strResult = StringByteIterator.getStringMap(result);
@@ -157,7 +158,7 @@ public class CassandraCQLClientTest {
     input.put("field0", "value1");
     input.put("field1", "value2");
 
-    final Status status = client.insert(TABLE, key, StringByteIterator.getByteIteratorMap(input));
+    final Status status = Futures.getUnchecked(client.insert(TABLE, key, StringByteIterator.getByteIteratorMap(input)));
     assertThat(status, is(Status.OK));
 
     // Verify result

@@ -17,6 +17,9 @@
 
 package com.yahoo.ycsb;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
@@ -105,7 +108,7 @@ public class BasicDB extends DB
 	 * @param result A HashMap of field/value pairs for the result
 	 * @return Zero on success, a non-zero error code on error
 	 */
-	public Status read(String table, String key, Set<String> fields, HashMap<String,ByteIterator> result)
+	public ListenableFuture<Status> read(String table, String key, Set<String> fields, HashMap<String,ByteIterator> result)
 	{
 		delay();
 
@@ -127,7 +130,7 @@ public class BasicDB extends DB
 			System.out.println("]");
 		}
 
-		return Status.OK;
+		return Futures.immediateFuture(Status.OK);
 	}
 	
 	/**
@@ -140,7 +143,7 @@ public class BasicDB extends DB
 	 * @param result A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
 	 * @return Zero on success, a non-zero error code on error
 	 */
-	public Status scan(String table, String startkey, int recordcount, Set<String> fields, Vector<HashMap<String,ByteIterator>> result)
+	public ListenableFuture<Status> scan(String table, String startkey, int recordcount, Set<String> fields, Vector<HashMap<String,ByteIterator>> result)
 	{
 		delay();
 
@@ -162,7 +165,7 @@ public class BasicDB extends DB
 			System.out.println("]");
 		}
 
-		return Status.OK;
+		return Futures.immediateFuture(Status.OK);
 	}
 
 	/**
@@ -174,7 +177,7 @@ public class BasicDB extends DB
 	 * @param values A HashMap of field/value pairs to update in the record
 	 * @return Zero on success, a non-zero error code on error
 	 */
-	public Status update(String table, String key, HashMap<String,ByteIterator> values)
+	public ListenableFuture<Status> update(String table, String key, HashMap<String,ByteIterator> values)
 	{
 		delay();
 
@@ -191,7 +194,7 @@ public class BasicDB extends DB
 			System.out.println("]");
 		}
 
-		return Status.OK;
+		return Futures.immediateFuture(Status.OK);
 	}
 
 	/**
@@ -203,7 +206,7 @@ public class BasicDB extends DB
 	 * @param values A HashMap of field/value pairs to insert in the record
 	 * @return Zero on success, a non-zero error code on error
 	 */
-	public Status insert(String table, String key, HashMap<String,ByteIterator> values)
+	public ListenableFuture<Status> insert(String table, String key, HashMap<String,ByteIterator> values)
 	{
 		delay();
 
@@ -221,7 +224,7 @@ public class BasicDB extends DB
 			System.out.println("]");
 		}
 
-		return Status.OK;
+		return Futures.immediateFuture(Status.OK);
 	}
 
 
@@ -232,7 +235,7 @@ public class BasicDB extends DB
 	 * @param key The record key of the record to delete.
 	 * @return Zero on success, a non-zero error code on error
 	 */
-	public Status delete(String table, String key)
+	public ListenableFuture<Status> delete(String table, String key)
 	{
 		delay();
 
@@ -241,7 +244,7 @@ public class BasicDB extends DB
 			System.out.println("DELETE "+table+" "+key);
 		}
 
-		return Status.OK;
+		return Futures.immediateFuture(Status.OK);
 	}
 
 	/**
