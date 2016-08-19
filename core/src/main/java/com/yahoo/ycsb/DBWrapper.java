@@ -179,6 +179,7 @@ public class DBWrapper extends DB
       @Override
       public void onFailure(Throwable throwable) {
         // shouldn't end up here
+        throw new RuntimeException(throwable);
       }
     });
 
