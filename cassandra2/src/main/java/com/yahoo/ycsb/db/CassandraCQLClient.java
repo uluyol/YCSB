@@ -318,20 +318,17 @@ public class CassandraCQLClient extends DB {
       return Futures.transform(rsf, new Function<ResultSet, Status>() {
         @Override
         public Status apply(ResultSet rs) {
-          if (rs.isExhausted()) {
-            return Status.NOT_FOUND;
-          }
-
           // Should be only 1 row
-          Row row = rs.one();
-          ColumnDefinitions cd = row.getColumnDefinitions();
+          for (Row row : rs) {
+            ColumnDefinitions cd = row.getColumnDefinitions();
 
-          for (ColumnDefinitions.Definition def : cd) {
-            ByteBuffer val = row.getBytesUnsafe(def.getName());
-            if (val != null) {
-              result.put(def.getName(), new ByteArrayByteIterator(val.array()));
-            } else {
-              result.put(def.getName(), null);
+            for (ColumnDefinitions.Definition def : cd) {
+              ByteBuffer val = row.getBytesUnsafe(def.getName());
+              if (val != null) {
+                result.put(def.getName(), new ByteArrayByteIterator(val.array()));
+              } else {
+                result.put(def.getName(), null);
+              }
             }
           }
 
@@ -423,8 +420,7 @@ public class CassandraCQLClient extends DB {
           @Override
           public Status apply(ResultSet rs) {
             HashMap < String, ByteIterator > tuple;
-            while (!rs.isExhausted()) {
-              Row row = rs.one();
+            for (Row row : rs) {
               tuple = new HashMap<String, ByteIterator>();
 
               ColumnDefinitions cd = row.getColumnDefinitions();
