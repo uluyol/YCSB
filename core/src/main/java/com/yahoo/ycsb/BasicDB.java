@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
@@ -108,7 +109,8 @@ public class BasicDB extends DB
 	 * @param result A HashMap of field/value pairs for the result
 	 * @return Zero on success, a non-zero error code on error
 	 */
-	public ListenableFuture<Status> read(String table, String key, Set<String> fields, HashMap<String,ByteIterator> result)
+	@Override
+	public ListenableFuture<Status> read(String table, String key, Set<String> fields, ConcurrentHashMap<String,ByteIterator> result)
 	{
 		delay();
 

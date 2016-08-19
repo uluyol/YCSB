@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.util.concurrent.Futures;
 import com.yahoo.ycsb.Client;
@@ -295,7 +296,7 @@ public class CommandLine
 		     }
 		  }
 		  
-		  HashMap<String,ByteIterator> result=new HashMap<String,ByteIterator>();
+		  ConcurrentHashMap<String,ByteIterator> result=new ConcurrentHashMap<>();
 		  Status ret = Futures.getUnchecked(db.read(table,tokens[1],fields,result));
 		  System.out.println("Return code: "+ret.getName());
 		  for (Map.Entry<String,ByteIterator> ent : result.entrySet())

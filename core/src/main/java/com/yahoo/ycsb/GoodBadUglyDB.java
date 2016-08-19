@@ -27,6 +27,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -110,7 +111,7 @@ public class GoodBadUglyDB extends DB {
      * @param result A HashMap of field/value pairs for the result
      * @return Zero on success, a non-zero error code on error
      */
-    public ListenableFuture<Status> read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
+    public ListenableFuture<Status> read(String table, String key, Set<String> fields, ConcurrentHashMap<String, ByteIterator> result) {
       return delayOKFuture();
     }
 

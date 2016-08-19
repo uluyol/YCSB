@@ -19,6 +19,7 @@ package com.yahoo.ycsb;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Queues;
@@ -79,6 +80,7 @@ public class DBWrapper extends DB
    * Initialize any state for this DB.
    * Called once per DB instance; there is one DB instance per client thread.
    */
+  @Override
   public void init() throws DBException
   {
     responseThread = new Thread(new Runnable() {
@@ -127,6 +129,7 @@ public class DBWrapper extends DB
    * Cleanup any state for this DB.
    * Called once per DB instance; there is one DB instance per client thread.
    */
+  @Override
   public void cleanup() throws DBException
   {
     while (true) {
@@ -153,8 +156,9 @@ public class DBWrapper extends DB
    * @param result A HashMap of field/value pairs for the result
    * @return The result of the operation.
    */
+  @Override
   public ListenableFuture<Status> read(String table, String key, Set<String> fields,
-                                      HashMap<String,ByteIterator> result)
+                                       ConcurrentHashMap<String, ByteIterator> result)
   {
     final long ist=_measurements.getIntendedtartTimeNs();
     final long st = System.nanoTime();
@@ -197,6 +201,7 @@ public class DBWrapper extends DB
    * @param result A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
    * @return The result of the operation.
    */
+  @Override
   public ListenableFuture<Status> scan(String table, String startkey, int recordcount,
       Set<String> fields, Vector<HashMap<String,ByteIterator>> result)
   {
@@ -235,6 +240,7 @@ public class DBWrapper extends DB
    * @param values A HashMap of field/value pairs to update in the record
    * @return The result of the operation.
    */
+  @Override
   public ListenableFuture<Status> update(String table, String key,
       HashMap<String,ByteIterator> values)
   {
@@ -255,6 +261,7 @@ public class DBWrapper extends DB
    * @param values A HashMap of field/value pairs to insert in the record
    * @return The result of the operation.
    */
+  @Override
   public ListenableFuture<Status> insert(String table, String key,
       HashMap<String,ByteIterator> values)
   {
@@ -272,6 +279,7 @@ public class DBWrapper extends DB
    * @param key The record key of the record to delete.
    * @return The result of the operation.
    */
+  @Override
   public ListenableFuture<Status> delete(String table, String key)
   {
     long ist=_measurements.getIntendedtartTimeNs();
