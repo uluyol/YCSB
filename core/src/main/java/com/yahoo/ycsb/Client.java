@@ -33,8 +33,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.yahoo.ycsb.measurements.Measurements;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 import com.yahoo.ycsb.measurements.exporter.TextMeasurementsExporter;
@@ -241,7 +239,6 @@ class ClientThread extends Thread
   Workload _workload;
   int _opcount;
   double _targetOpsPerMs;
-  final boolean _runOpenLoop;
 
   int _opsdone;
   int _threadid;
@@ -262,7 +259,7 @@ class ClientThread extends Thread
    * @param targetperthreadperms target number of operations per thread per ms
    * @param completeLatch The latch tracking the completion of all clients.
    */
-  public ClientThread(DB db, boolean dotransactions, Workload workload, Properties props, int opcount, double targetperthreadperms, CountDownLatch completeLatch, boolean runOpenLoop)
+  public ClientThread(DB db, boolean dotransactions, Workload workload, Properties props, int opcount, double targetperthreadperms, CountDownLatch completeLatch)
   {
     _db=db;
     _dotransactions=dotransactions;
@@ -277,7 +274,6 @@ class ClientThread extends Thread
     _measurements = Measurements.getMeasurements();
     _spinSleep = Boolean.valueOf(_props.getProperty("spin.sleep", "false"));
     _completeLatch=completeLatch;
-    _runOpenLoop = runOpenLoop;
   }
 
   public int getOpsDone()
@@ -329,11 +325,14 @@ class ClientThread extends Thread
 
         while (((_opcount == 0) || (_opsdone < _opcount)) && !_workload.isStopRequested())
         {
-          ListenableFuture<Boolean> res = _workload.doTransaction(_db,_workloadstate);
-          if (!_runOpenLoop) {
-            Futures.getUnchecked(res);
+
+          if (!_workload.doTransaction(_db,_workloadstate))
+          {
+            break;
           }
+
           _opsdone++;
+
           throttleNanos(startTimeNanos);
         }
       }
@@ -344,7 +343,7 @@ class ClientThread extends Thread
         while (((_opcount == 0) || (_opsdone < _opcount)) && !_workload.isStopRequested())
         {
 
-          if (!Futures.getUnchecked(_workload.doInsert(_db,_workloadstate)))
+          if (!_workload.doInsert(_db,_workloadstate))
           {
             break;
           }
@@ -475,8 +474,6 @@ public class Client
    */
   public static final String DO_TRANSACTIONS_PROPERTY = "dotransactions";
 
-  public static final String RUN_OPEN_LOOP_PROPERTY = "runopenloop";
-
 
   public static void usageMessage()
   {
@@ -574,7 +571,6 @@ public class Client
     Properties props=new Properties();
     Properties fileprops=new Properties();
     boolean dotransactions=true;
-    boolean runopenloop = false;
     int threadcount=1;
     int target=0;
     boolean status=false;
@@ -856,15 +852,6 @@ public class Client
     if (dotransactions)
     {
       opcount=Integer.parseInt(props.getProperty(OPERATION_COUNT_PROPERTY,"0"));
-      runopenloop = Boolean.parseBoolean(props.getProperty(RUN_OPEN_LOOP_PROPERTY, "false"));
-      if (runopenloop && targetperthreadperms <= 0) {
-        System.err.println("Cannot run open loop without setting target op count");
-        System.exit(1);
-      }
-      if (runopenloop && !dotransactions) {
-        System.err.println("Cannot run open loop with load");
-        System.exit(1);
-      }
     }
     else
     {
@@ -902,7 +889,7 @@ public class Client
         ++threadopcount;
       }
 
-      ClientThread t=new ClientThread(db,dotransactions,workload,props,threadopcount, targetperthreadperms, completeLatch, runopenloop);
+      ClientThread t=new ClientThread(db,dotransactions,workload,props,threadopcount, targetperthreadperms, completeLatch);
 
       clients.add(t);
     }

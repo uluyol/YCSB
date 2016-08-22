@@ -17,14 +17,13 @@
 
 package com.yahoo.ycsb;
 
-import java.util.*;
-import java.util.concurrent.BlockingQueue;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Properties;
+import java.util.Set;
+import java.util.Vector;
 
-import com.google.common.base.Optional;
-import com.google.common.collect.Queues;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.yahoo.ycsb.measurements.Measurements;
 
 /**
@@ -46,12 +45,6 @@ public class DBWrapper extends DB
 
   private static final String LATENCY_TRACKED_ERRORS_PROPERTY =
       "latencytrackederrors";
-
-  // To prevent exiting before all of the requests have actually executed,
-  // queue up the requests and wait for them in responseThread. We signal
-  // that work is done by sending null into workq in cleanup().
-  private final BlockingQueue<Optional<ListenableFuture<Status>>> workq = Queues.newLinkedBlockingQueue();
-  private Thread responseThread = null;
 
   public DBWrapper(DB db)
   {
@@ -81,28 +74,6 @@ public class DBWrapper extends DB
    */
   public void init() throws DBException
   {
-    responseThread = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        while (true) {
-          Optional<ListenableFuture<Status>> s = null;
-          while (true) {
-            try {
-              s = workq.take();
-              break;
-            } catch (InterruptedException e) {
-            }
-          }
-          if (!s.isPresent()) {
-            // no more work
-            return;
-          }
-          Futures.getUnchecked(s.get());
-        }
-      }
-    });
-    responseThread.start();
-
     _db.init();
 
     this.reportLatencyForEachError = Boolean.parseBoolean(getProperties().
@@ -129,13 +100,6 @@ public class DBWrapper extends DB
    */
   public void cleanup() throws DBException
   {
-    while (true) {
-      try {
-        workq.put(Optional.<ListenableFuture<Status>>absent());
-        responseThread.join();
-        break;
-      } catch (InterruptedException e) {}
-    }
     long ist=_measurements.getIntendedtartTimeNs();
     long st = System.nanoTime();
     _db.cleanup();
@@ -153,37 +117,16 @@ public class DBWrapper extends DB
    * @param result A HashMap of field/value pairs for the result
    * @return The result of the operation.
    */
-  public ListenableFuture<Status> read(String table, String key, Set<String> fields,
-                                      HashMap<String,ByteIterator> result)
+  public Status read(String table, String key, Set<String> fields,
+      HashMap<String,ByteIterator> result)
   {
-    final long ist=_measurements.getIntendedtartTimeNs();
-    final long st = System.nanoTime();
-    ListenableFuture<Status> res=_db.read(table,key,fields,result);
-    addMeasureCallbackAndQueue(res, "READ", ist, st);
+    long ist=_measurements.getIntendedtartTimeNs();
+    long st = System.nanoTime();
+    Status res=_db.read(table,key,fields,result);
+    long en=System.nanoTime();
+    measure("READ", res, ist, st, en);
+    _measurements.reportStatus("READ", res);
     return res;
-  }
-
-  private final void addMeasureCallbackAndQueue(ListenableFuture<Status> res, final String op, final long ist, final long st) {
-    Futures.addCallback(res, new FutureCallback<Status>() {
-      @Override
-      public void onSuccess(Status status) {
-        long en = System.nanoTime();
-        measure(op, status, ist, st, en);
-        _measurements.reportStatus(op, status);
-      }
-
-      @Override
-      public void onFailure(Throwable throwable) {
-        // shouldn't end up here
-      }
-    });
-
-    while (true) {
-      try {
-        workq.put(Optional.of(res));
-        break;
-      } catch (InterruptedException e) {}
-    }
   }
 
   /**
@@ -197,17 +140,19 @@ public class DBWrapper extends DB
    * @param result A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
    * @return The result of the operation.
    */
-  public ListenableFuture<Status> scan(String table, String startkey, int recordcount,
+  public Status scan(String table, String startkey, int recordcount,
       Set<String> fields, Vector<HashMap<String,ByteIterator>> result)
   {
     long ist=_measurements.getIntendedtartTimeNs();
     long st = System.nanoTime();
-    ListenableFuture<Status> res=_db.scan(table,startkey,recordcount,fields,result);
-    addMeasureCallbackAndQueue(res, "SCAN", ist, st);
+    Status res=_db.scan(table,startkey,recordcount,fields,result);
+    long en=System.nanoTime();
+    measure("SCAN", res, ist, st, en);
+    _measurements.reportStatus("SCAN", res);
     return res;
   }
 
-  private synchronized void measure(String op, Status result, long intendedStartTimeNanos,
+  private void measure(String op, Status result, long intendedStartTimeNanos,
       long startTimeNanos, long endTimeNanos) {
     String measurementName = op;
     if (!result.equals(Status.OK)) {
@@ -235,13 +180,15 @@ public class DBWrapper extends DB
    * @param values A HashMap of field/value pairs to update in the record
    * @return The result of the operation.
    */
-  public ListenableFuture<Status> update(String table, String key,
+  public Status update(String table, String key,
       HashMap<String,ByteIterator> values)
   {
     long ist=_measurements.getIntendedtartTimeNs();
     long st = System.nanoTime();
-    ListenableFuture<Status> res=_db.update(table,key,values);
-    addMeasureCallbackAndQueue(res, "UPDATE", ist, st);
+    Status res=_db.update(table,key,values);
+    long en=System.nanoTime();
+    measure("UPDATE", res, ist, st, en);
+    _measurements.reportStatus("UPDATE", res);
     return res;
   }
 
@@ -255,13 +202,15 @@ public class DBWrapper extends DB
    * @param values A HashMap of field/value pairs to insert in the record
    * @return The result of the operation.
    */
-  public ListenableFuture<Status> insert(String table, String key,
+  public Status insert(String table, String key,
       HashMap<String,ByteIterator> values)
   {
     long ist=_measurements.getIntendedtartTimeNs();
     long st = System.nanoTime();
-    ListenableFuture<Status> res=_db.insert(table,key,values);
-    addMeasureCallbackAndQueue(res, "INSERT", ist, st);
+    Status res=_db.insert(table,key,values);
+    long en=System.nanoTime();
+    measure("INSERT", res, ist, st, en);
+    _measurements.reportStatus("INSERT", res);
     return res;
   }
 
@@ -272,12 +221,14 @@ public class DBWrapper extends DB
    * @param key The record key of the record to delete.
    * @return The result of the operation.
    */
-  public ListenableFuture<Status> delete(String table, String key)
+  public Status delete(String table, String key)
   {
     long ist=_measurements.getIntendedtartTimeNs();
     long st = System.nanoTime();
-    ListenableFuture<Status> res=_db.delete(table,key);
-    addMeasureCallbackAndQueue(res, "DELETE", ist, st);
+    Status res=_db.delete(table,key);
+    long en=System.nanoTime();
+    measure("DELETE", res, ist, st, en);
+    _measurements.reportStatus("DELETE", res);
     return res;
   }
 }

@@ -17,8 +17,6 @@
 
 package com.yahoo.ycsb;
 
-import com.google.common.util.concurrent.ListenableFuture;
-
 import java.util.HashMap;
 import java.util.Properties;
 import java.util.Set;
@@ -92,7 +90,7 @@ public abstract class DB
 	 * @param result A HashMap of field/value pairs for the result
 	 * @return The result of the operation.
 	 */
-	public abstract ListenableFuture<Status> read(String table, String key, Set<String> fields, HashMap<String,ByteIterator> result);
+	public abstract Status read(String table, String key, Set<String> fields, HashMap<String,ByteIterator> result);
 
 	/**
 	 * Perform a range scan for a set of records in the database. Each field/value pair from the result will be stored in a HashMap.
@@ -104,7 +102,7 @@ public abstract class DB
 	 * @param result A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
 	 * @return The result of the operation.
 	 */
-	public abstract ListenableFuture<Status> scan(String table, String startkey, int recordcount, Set<String> fields, Vector<HashMap<String,ByteIterator>> result);
+	public abstract Status scan(String table, String startkey, int recordcount, Set<String> fields, Vector<HashMap<String,ByteIterator>> result);
 	
 	/**
 	 * Update a record in the database. Any field/value pairs in the specified values HashMap will be written into the record with the specified
@@ -115,7 +113,7 @@ public abstract class DB
 	 * @param values A HashMap of field/value pairs to update in the record
 	 * @return The result of the operation.
 	 */
-	public abstract ListenableFuture<Status> update(String table, String key, HashMap<String,ByteIterator> values);
+	public abstract Status update(String table, String key, HashMap<String,ByteIterator> values);
 
 	/**
 	 * Insert a record in the database. Any field/value pairs in the specified values HashMap will be written into the record with the specified
@@ -126,7 +124,7 @@ public abstract class DB
 	 * @param values A HashMap of field/value pairs to insert in the record
 	 * @return The result of the operation.
 	 */
-	public abstract ListenableFuture<Status> insert(String table, String key, HashMap<String,ByteIterator> values);
+	public abstract Status insert(String table, String key, HashMap<String,ByteIterator> values);
 
 	/**
 	 * Delete a record from the database. 
@@ -135,5 +133,5 @@ public abstract class DB
 	 * @param key The record key of the record to delete.
 	 * @return The result of the operation.
 	 */
-	public abstract ListenableFuture<Status> delete(String table, String key);
+	public abstract Status delete(String table, String key);
 }

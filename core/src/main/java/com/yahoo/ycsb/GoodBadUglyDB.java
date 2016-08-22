@@ -17,16 +17,12 @@
 
 package com.yahoo.ycsb;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
-
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 import java.util.HashMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.Vector;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -91,16 +87,6 @@ public class GoodBadUglyDB extends DB {
         }
     }
 
-    private final ListenableFuture<Status> delayOKFuture() {
-      return MoreExecutors.newDirectExecutorService().submit(new Callable<Status>() {
-        @Override
-        public Status call() throws Exception {
-          delay();
-          return Status.OK;
-        }
-      });
-    }
-
     /**
      * Read a record from the database. Each field/value pair from the result will be stored in a HashMap.
      *
@@ -110,8 +96,9 @@ public class GoodBadUglyDB extends DB {
      * @param result A HashMap of field/value pairs for the result
      * @return Zero on success, a non-zero error code on error
      */
-    public ListenableFuture<Status> read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
-      return delayOKFuture();
+    public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
+        delay();
+        return Status.OK;
     }
 
     /**
@@ -125,9 +112,11 @@ public class GoodBadUglyDB extends DB {
      * @param result A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
      * @return Zero on success, a non-zero error code on error
      */
-    public ListenableFuture<Status> scan(String table, String startkey, int recordcount, Set<String> fields,
+    public Status scan(String table, String startkey, int recordcount, Set<String> fields,
             Vector<HashMap<String, ByteIterator>> result) {
-      return delayOKFuture();
+        delay();
+
+        return Status.OK;
     }
 
     /**
@@ -139,8 +128,10 @@ public class GoodBadUglyDB extends DB {
      * @param values A HashMap of field/value pairs to update in the record
      * @return Zero on success, a non-zero error code on error
      */
-    public ListenableFuture<Status> update(String table, String key, HashMap<String, ByteIterator> values) {
-      return delayOKFuture();
+    public Status update(String table, String key, HashMap<String, ByteIterator> values) {
+        delay();
+
+        return Status.OK;
     }
 
     /**
@@ -152,8 +143,9 @@ public class GoodBadUglyDB extends DB {
      * @param values A HashMap of field/value pairs to insert in the record
      * @return Zero on success, a non-zero error code on error
      */
-    public ListenableFuture<Status> insert(String table, String key, HashMap<String, ByteIterator> values) {
-      return delayOKFuture();
+    public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
+        delay();
+        return Status.OK;
     }
 
     /**
@@ -163,7 +155,8 @@ public class GoodBadUglyDB extends DB {
      * @param key The record key of the record to delete.
      * @return Zero on success, a non-zero error code on error
      */
-    public ListenableFuture<Status> delete(String table, String key) {
-      return delayOKFuture();
+    public Status delete(String table, String key) {
+        delay();
+        return Status.OK;
     }
 }

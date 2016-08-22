@@ -21,20 +21,23 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
-import com.google.common.base.Function;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.protobuf.ByteString;
 import com.yahoo.ycsb.ByteArrayByteIterator;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Cassandra 2.x CQL client.
@@ -121,7 +124,7 @@ public class CassandraCQLClient extends DB {
     }
   }
 
-  private static void writeTrace(ListenableFuture<QueryTrace> trace) {
+  private static void writeTrace(QueryTrace trace) {
     traceWriter.write(trace);
   }
 
@@ -259,15 +262,6 @@ public class CassandraCQLClient extends DB {
     }
   }
 
-  public static ListenableFuture<QueryTrace> traceOf(ResultSetFuture rsf) {
-    return Futures.transform(rsf, new Function<ResultSet, QueryTrace>() {
-      @Override
-      public QueryTrace apply(ResultSet rs) {
-        return rs.getExecutionInfo().getQueryTrace();
-      }
-    });
-  }
-
   /**
    * Read a record from the database. Each field/value pair from the result will
    * be stored in a HashMap.
@@ -283,8 +277,8 @@ public class CassandraCQLClient extends DB {
    * @return Zero on success, a non-zero error code on error
    */
   @Override
-  public ListenableFuture<Status> read(String table, String key, Set<String> fields,
-                                       final HashMap<String, ByteIterator> result) {
+  public Status read(String table, String key, Set<String> fields,
+      HashMap<String, ByteIterator> result) {
     try {
       Statement stmt;
       Select.Builder selectBuilder;
@@ -301,7 +295,7 @@ public class CassandraCQLClient extends DB {
       stmt = selectBuilder.from(table).where(QueryBuilder.eq(YCSB_KEY, key))
           .limit(1);
       stmt.setConsistencyLevel(readConsistencyLevel);
-      final boolean tracing = shouldTrace();
+      boolean tracing = shouldTrace();
       if (tracing) {
         stmt.enableTracing();
       }
@@ -310,42 +304,38 @@ public class CassandraCQLClient extends DB {
         System.out.println(stmt.toString());
       }
 
-      ResultSetFuture rsf = session.executeAsync(stmt);
+      ResultSet rs = session.execute(stmt);
       if (tracing) {
-        writeTrace(traceOf(rsf));
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
       }
 
-      return Futures.transform(rsf, new Function<ResultSet, Status>() {
-        @Override
-        public Status apply(ResultSet rs) {
-          if (rs.isExhausted()) {
-            return Status.NOT_FOUND;
-          }
+      if (rs.isExhausted()) {
+        return Status.NOT_FOUND;
+      }
 
-          // Should be only 1 row
-          Row row = rs.one();
-          ColumnDefinitions cd = row.getColumnDefinitions();
+      // Should be only 1 row
+      Row row = rs.one();
+      ColumnDefinitions cd = row.getColumnDefinitions();
 
-          for (ColumnDefinitions.Definition def : cd) {
-            ByteBuffer val = row.getBytesUnsafe(def.getName());
-            if (val != null) {
-              result.put(def.getName(), new ByteArrayByteIterator(val.array()));
-            } else {
-              result.put(def.getName(), null);
-            }
-          }
-
-          if (tracing) {
-            return Status.TRACED_OK;
-          }
-
-          return Status.OK;
+      for (ColumnDefinitions.Definition def : cd) {
+        ByteBuffer val = row.getBytesUnsafe(def.getName());
+        if (val != null) {
+          result.put(def.getName(), new ByteArrayByteIterator(val.array()));
+        } else {
+          result.put(def.getName(), null);
         }
-      });
+      }
+
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
+
+      return Status.OK;
+
     } catch (Exception e) {
       e.printStackTrace();
       System.out.println("Error reading key: " + key);
-      return Futures.immediateFuture(Status.ERROR);
+      return Status.ERROR;
     }
 
   }
@@ -371,8 +361,8 @@ public class CassandraCQLClient extends DB {
    * @return Zero on success, a non-zero error code on error
    */
   @Override
-  public ListenableFuture<Status> scan(String table, String startkey, int recordcount,
-      Set<String> fields, final Vector<HashMap<String, ByteIterator>> result) {
+  public Status scan(String table, String startkey, int recordcount,
+      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
 
     try {
       Statement stmt;
@@ -405,7 +395,7 @@ public class CassandraCQLClient extends DB {
 
       stmt = new SimpleStatement(scanStmt.toString());
       stmt.setConsistencyLevel(readConsistencyLevel);
-      final boolean tracing = shouldTrace();
+      boolean tracing = shouldTrace();
       if (tracing) {
         stmt.enableTracing();
       }
@@ -414,44 +404,40 @@ public class CassandraCQLClient extends DB {
         System.out.println(stmt.toString());
       }
 
-      ResultSetFuture rsf = session.executeAsync(stmt);
+      ResultSet rs = session.execute(stmt);
       if (tracing) {
-        writeTrace(traceOf(rsf));
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
       }
 
-      return Futures.transform(rsf, new Function<ResultSet, Status>() {
-          @Override
-          public Status apply(ResultSet rs) {
-            HashMap < String, ByteIterator > tuple;
-            while (!rs.isExhausted()) {
-              Row row = rs.one();
-              tuple = new HashMap<String, ByteIterator>();
+      HashMap<String, ByteIterator> tuple;
+      while (!rs.isExhausted()) {
+        Row row = rs.one();
+        tuple = new HashMap<String, ByteIterator>();
 
-              ColumnDefinitions cd = row.getColumnDefinitions();
+        ColumnDefinitions cd = row.getColumnDefinitions();
 
-              for (ColumnDefinitions.Definition def : cd) {
-                ByteBuffer val = row.getBytesUnsafe(def.getName());
-                if (val != null) {
-                  tuple.put(def.getName(), new ByteArrayByteIterator(val.array()));
-                } else {
-                  tuple.put(def.getName(), null);
-                }
-              }
-
-              result.add(tuple);
-            }
-
-            if (tracing) {
-              return Status.TRACED_OK;
-            }
-
-            return Status.OK;
+        for (ColumnDefinitions.Definition def : cd) {
+          ByteBuffer val = row.getBytesUnsafe(def.getName());
+          if (val != null) {
+            tuple.put(def.getName(), new ByteArrayByteIterator(val.array()));
+          } else {
+            tuple.put(def.getName(), null);
           }
-        });
+        }
+
+        result.add(tuple);
+      }
+
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
+
+      return Status.OK;
+
     } catch (Exception e) {
       e.printStackTrace();
       System.out.println("Error scanning with startkey: " + startkey);
-      return Futures.immediateFuture(Status.ERROR);
+      return Status.ERROR;
     }
 
   }
@@ -470,7 +456,7 @@ public class CassandraCQLClient extends DB {
    * @return Zero on success, a non-zero error code on error
    */
   @Override
-  public ListenableFuture<Status> update(String table, String key,
+  public Status update(String table, String key,
       HashMap<String, ByteIterator> values) {
     // Insert and updates provide the same functionality
     return insert(table, key, values);
@@ -490,7 +476,7 @@ public class CassandraCQLClient extends DB {
    * @return Zero on success, a non-zero error code on error
    */
   @Override
-  public ListenableFuture<Status> insert(String table, String key,
+  public Status insert(String table, String key,
       HashMap<String, ByteIterator> values) {
 
     try {
@@ -509,7 +495,7 @@ public class CassandraCQLClient extends DB {
       }
 
       insertStmt.setConsistencyLevel(writeConsistencyLevel);
-      final boolean tracing = shouldTrace();
+      boolean tracing = shouldTrace();
       if (tracing) {
         insertStmt.enableTracing();
       }
@@ -518,26 +504,21 @@ public class CassandraCQLClient extends DB {
         System.out.println(insertStmt.toString());
       }
 
-      ResultSetFuture rsf = session.executeAsync(insertStmt);
+      ResultSet rs = session.execute(insertStmt);
       if (tracing) {
-        writeTrace(traceOf(rsf));
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
       }
 
-      return Futures.transform(rsf, new Function<ResultSet, Status>() {
-        @Override
-        public Status apply(ResultSet rs) {
-          if (tracing) {
-            return Status.TRACED_OK;
-          }
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
 
-          return Status.OK;
-        }
-      });
+      return Status.OK;
     } catch (Exception e) {
       e.printStackTrace();
     }
 
-    return Futures.immediateFuture(Status.ERROR);
+    return Status.ERROR;
   }
 
   /**
@@ -550,7 +531,7 @@ public class CassandraCQLClient extends DB {
    * @return Zero on success, a non-zero error code on error
    */
   @Override
-  public ListenableFuture<Status> delete(String table, String key) {
+  public Status delete(String table, String key) {
 
     try {
       Statement stmt;
@@ -559,7 +540,7 @@ public class CassandraCQLClient extends DB {
           .where(QueryBuilder.eq(YCSB_KEY, key));
       stmt.setConsistencyLevel(writeConsistencyLevel);
 
-      final boolean tracing = shouldTrace();
+      boolean tracing = shouldTrace();
       if (tracing) {
         stmt.enableTracing();
       }
@@ -568,27 +549,22 @@ public class CassandraCQLClient extends DB {
         System.out.println(stmt.toString());
       }
 
-      ResultSetFuture rsf = session.executeAsync(stmt);
+      ResultSet rs = session.execute(stmt);
       if (tracing) {
-        writeTrace(traceOf(rsf));
+        writeTrace(rs.getExecutionInfo().getQueryTrace());
       }
 
-      return Futures.transform(rsf, new Function<ResultSet, Status>() {
-        @Override
-        public Status apply(ResultSet input) {
-          if (tracing) {
-            return Status.TRACED_OK;
-          }
+      if (tracing) {
+        return Status.TRACED_OK;
+      }
 
-          return Status.OK;
-        }
-      });
+      return Status.OK;
     } catch (Exception e) {
       e.printStackTrace();
       System.out.println("Error deleting key: " + key);
     }
 
-    return Futures.immediateFuture(Status.ERROR);
+    return Status.ERROR;
   }
 
 }
