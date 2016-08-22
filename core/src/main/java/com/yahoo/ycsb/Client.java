@@ -29,6 +29,7 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
@@ -247,6 +248,8 @@ class ClientThread extends Thread
   Properties _props;
   long _targetOpsTickNs;
   final Measurements _measurements;
+  final Random _rand;
+  final String _reqIssue;
 
   /**
    * Constructor.
@@ -274,6 +277,8 @@ class ClientThread extends Thread
     _measurements = Measurements.getMeasurements();
     _spinSleep = Boolean.valueOf(_props.getProperty("spin.sleep", "false"));
     _completeLatch=completeLatch;
+    _rand = new Random();
+    _reqIssue = _props.getProperty("reqissuepattern", "const");
   }
 
   public int getOpsDone()
@@ -325,15 +330,15 @@ class ClientThread extends Thread
 
         while (((_opcount == 0) || (_opsdone < _opcount)) && !_workload.isStopRequested())
         {
-
-          if (!_workload.doTransaction(_db,_workloadstate))
-          {
+          long reqStart = System.nanoTime();
+          if (!_workload.doTransaction(_db,_workloadstate)) {
             break;
           }
 
           _opsdone++;
 
-          throttleNanos(startTimeNanos);
+          throttle(startTimeNanos, System.nanoTime()-reqStart);
+          //throttleNanos(startTimeNanos);
         }
       }
       else
@@ -342,15 +347,15 @@ class ClientThread extends Thread
 
         while (((_opcount == 0) || (_opsdone < _opcount)) && !_workload.isStopRequested())
         {
-
-          if (!_workload.doInsert(_db,_workloadstate))
-          {
+          long reqStart = System.nanoTime();
+          if (!_workload.doInsert(_db,_workloadstate)) {
             break;
           }
 
           _opsdone++;
 
-          throttleNanos(startTimeNanos);
+          throttle(startTimeNanos, System.nanoTime()-reqStart);
+          //throttleNanos(startTimeNanos);
         }
       }
     }
@@ -386,6 +391,7 @@ class ClientThread extends Thread
       }
     }
   }
+
   private void throttleNanos(long startTimeNanos) {
     //throttle the operations
     if (_targetOpsPerMs > 0)
@@ -396,7 +402,34 @@ class ClientThread extends Thread
       _measurements.setIntendedStartTimeNs(deadline);
     }
   }
-  
+
+  // sleepNext sleeps in between requests. If a request is supposed
+  // to be issued every second, then the goal is to have a random
+  // delay between 0.5 and 1.5 seconds, which averages to one every
+  // second.
+  //
+  // This method takes the request latency into account and only
+  // waits for the remaining time (if any). Using this in conjunction
+  // with measurement.interval=intended is not supported.
+  private void sleepNext(long reqLatencyNanos) {
+    if (_targetOpsPerMs > 0) {
+      long minDelay = _targetOpsTickNs / 2;
+      long randDelay = _rand.nextLong() % _targetOpsTickNs;
+      long delay = minDelay + randDelay;
+      long deadline = System.nanoTime() + delay - reqLatencyNanos;
+      sleepUntil(deadline);
+    }
+  }
+
+  private void throttle(long startTimeNanos, long reqLatencyNanos) {
+    if (_reqIssue.equals("rand")) {
+      sleepNext(reqLatencyNanos);
+    } else {
+      // reqissuepattern=const
+      throttleNanos(startTimeNanos);
+    }
+  }
+
   /**
    * the total amount of work this thread is still expected to do
    */
