@@ -50,7 +50,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Integration tests for the Cassandra client
@@ -103,7 +102,7 @@ public class CassandraCQLClientTest {
 
   @Test
   public void testReadMissingRow() throws Exception {
-    final ConcurrentHashMap<String, ByteIterator> result = new ConcurrentHashMap<>();
+    final HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
     final Status status = Futures.getUnchecked(client.read(TABLE, "Missing row", null, result));
     assertThat(result.size(), is(0));
     assertThat(status, is(Status.NOT_FOUND));
@@ -123,7 +122,7 @@ public class CassandraCQLClientTest {
   public void testRead() throws Exception {
     insertRow();
 
-    final ConcurrentHashMap<String, ByteIterator> result = new ConcurrentHashMap<>();
+    final HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
     final Status status = Futures.getUnchecked(client.read(CoreWorkload.table, DEFAULT_ROW_KEY, null, result));
     assertThat(status, is(Status.OK));
     assertThat(result.entrySet(), hasSize(11));
@@ -143,7 +142,7 @@ public class CassandraCQLClientTest {
   @Test
   public void testReadSingleColumn() throws Exception {
     insertRow();
-    final ConcurrentHashMap<String, ByteIterator> result = new ConcurrentHashMap<>();
+    final HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
     final Set<String> fields = Sets.newHashSet("field1");
     final Status status = Futures.getUnchecked(client.read(CoreWorkload.table, DEFAULT_ROW_KEY, fields, result));
     assertThat(status, is(Status.OK));

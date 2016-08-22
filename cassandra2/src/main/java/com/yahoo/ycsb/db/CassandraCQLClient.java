@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -285,7 +284,7 @@ public class CassandraCQLClient extends DB {
    */
   @Override
   public ListenableFuture<Status> read(String table, String key, Set<String> fields,
-                                       final ConcurrentHashMap<String, ByteIterator> result) {
+                                       final HashMap<String, ByteIterator> result) {
     try {
       Statement stmt;
       Select.Builder selectBuilder;
@@ -320,23 +319,18 @@ public class CassandraCQLClient extends DB {
         @Override
         public Status apply(ResultSet rs) {
           // Should be only 1 row
-          if (rs.isExhausted()) {
-            return Status.NOT_FOUND;
-          }
+          for (Row row : rs) {
+            ColumnDefinitions cd = row.getColumnDefinitions();
 
-          // Should only be 1 row
-          Row row = rs.one();
-          ColumnDefinitions cd = row.getColumnDefinitions();
-
-          for (ColumnDefinitions.Definition def : cd) {
-            ByteBuffer val = row.getBytesUnsafe(def.getName());
-            if (val != null) {
-              result.put(def.getName(), new ByteArrayByteIterator(val.array()));
-            } else {
-              result.put(def.getName(), null);
+            for (ColumnDefinitions.Definition def : cd) {
+              ByteBuffer val = row.getBytesUnsafe(def.getName());
+              if (val != null) {
+                result.put(def.getName(), new ByteArrayByteIterator(val.array()));
+              } else {
+                result.put(def.getName(), null);
+              }
             }
           }
-
 
           if (tracing) {
             return Status.TRACED_OK;

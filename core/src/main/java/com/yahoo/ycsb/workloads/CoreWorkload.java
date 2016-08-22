@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 
 /**
@@ -650,7 +649,7 @@ public class CoreWorkload extends Workload {
    * Bucket 1 means incorrect data was returned.
    * Bucket 2 means null data was returned when some data was expected.
    */
-  protected void verifyRow(String key, ConcurrentHashMap<String, ByteIterator> cells) {
+  protected void verifyRow(String key, HashMap<String, ByteIterator> cells) {
     Status verifyStatus = Status.OK;
     long startTime = System.nanoTime();
     if (!cells.isEmpty()) {
@@ -709,7 +708,7 @@ public class CoreWorkload extends Workload {
       fields = new HashSet<String>(fieldnames);
     }
 
-    ConcurrentHashMap<String, ByteIterator> cells = new ConcurrentHashMap<>();
+    HashMap<String, ByteIterator> cells = new HashMap<String, ByteIterator>();
     ListenableFuture<Status> s = db.read(table, keyname, fields, cells);
 
     if (dataintegrity) {
@@ -749,7 +748,7 @@ public class CoreWorkload extends Workload {
 
     // do the transaction
 
-    ConcurrentHashMap<String, ByteIterator> cells = new ConcurrentHashMap<>();
+    HashMap<String, ByteIterator> cells = new HashMap<String, ByteIterator>();
 
 
     long ist = _measurements.getIntendedtartTimeNs();

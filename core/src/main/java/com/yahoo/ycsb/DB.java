@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A layer for accessing a database to be benchmarked. Each thread in the client
@@ -93,7 +92,7 @@ public abstract class DB
 	 * @param result A HashMap of field/value pairs for the result
 	 * @return The result of the operation.
 	 */
-	public abstract ListenableFuture<Status> read(String table, String key, Set<String> fields, ConcurrentHashMap<String,ByteIterator> result);
+	public abstract ListenableFuture<Status> read(String table, String key, Set<String> fields, HashMap<String,ByteIterator> result);
 
 	/**
 	 * Perform a range scan for a set of records in the database. Each field/value pair from the result will be stored in a HashMap.
