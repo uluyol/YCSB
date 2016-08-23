@@ -414,7 +414,7 @@ class ClientThread extends Thread
   private void sleepNext(long reqLatencyNanos) {
     if (_targetOpsPerMs > 0) {
       long minDelay = _targetOpsTickNs / 2;
-      long randDelay = _rand.nextLong() % _targetOpsTickNs;
+      long randDelay = Math.abs(_rand.nextLong()) % _targetOpsTickNs;
       long delay = minDelay + randDelay;
       long deadline = System.nanoTime() + delay - reqLatencyNanos;
       sleepUntil(deadline);
