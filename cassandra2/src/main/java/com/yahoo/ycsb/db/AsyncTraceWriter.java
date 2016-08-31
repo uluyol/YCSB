@@ -1,6 +1,7 @@
 package com.yahoo.ycsb.db;
 
 import com.datastax.driver.core.QueryTrace;
+import com.datastax.driver.core.exceptions.TraceRetrievalException;
 import com.google.common.base.Optional;
 import com.google.protobuf.ByteString;
 
@@ -20,7 +21,7 @@ import java.util.zip.GZIPOutputStream;
  * prevents worker threads from stalling.
  */
 public final class AsyncTraceWriter {
-  public static final long DEFAULT_DELAY_MILLIS = 5000;
+  public static final long DEFAULT_DELAY_MILLIS = 7500;
 
   private final OutputStream rawOut;
   private final GZIPOutputStream gzipOut;
@@ -53,6 +54,10 @@ public final class AsyncTraceWriter {
           if (System.currentTimeMillis() >= trace.get().startTime+delayMillis) {
             try {
               writeToOutput(trace.get().trace, trace.get().startTime, gzipOut);
+            } catch (TraceRetrievalException e) {
+              System.err.println("had error while retrieving trace, consider increasing delay");
+              e.printStackTrace();
+              continue;
             } catch (IOException e) {
               throw new RuntimeException(e);
             }
