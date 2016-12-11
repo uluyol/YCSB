@@ -249,8 +249,10 @@ public class CassandraCQLClient extends DB {
       final int curInitCount = INIT_COUNT.decrementAndGet();
       if (curInitCount <= 0) {
         closeStreams();
-        session.close();
-        cluster.close();
+        CloseFuture f = session.closeAsync();
+        f.force();
+        f = cluster.closeAsync();
+        f.force();
         cluster = null;
         session = null;
       }
